@@ -36,13 +36,55 @@ func NewServer(cfg *config.Config, logger logger.Logger, db *gorm.DB) *Server {
 }
 
 func (s *Server) setupRoutes() {
-	s.router.Use(middleware.Logging(s.logger))
-	s.router.Use(middleware.Recovery(s.logger))
+	// Применяем CORS middleware ко всем маршрутам
 	s.router.Use(middleware.CORS)
+	s.router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
+	// Создаем подмаршрутизатор для API
+	api := s.router.PathPrefix("/api").Subrouter()
+
+	// Auth routes
+	authHandler := handlers.NewAuthHandler(s.db, s.logger)
+	api.HandleFunc("/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+	api.HandleFunc("/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
+
+	// User routes
+	userHandler := handlers.NewUserHandler(s.db, s.logger)
+	api.HandleFunc("/users", userHandler.GetUsers).Methods("GET")
+	// api.HandleFunc("/users/{id}", userHandler.GetUser).Methods("GET")
+
+	// Post routes
 	postHandler := handlers.NewPostHandler(s.db, s.logger)
-	s.router.HandleFunc("/api/posts", postHandler.GetPosts).Methods("GET")
-	s.router.HandleFunc("/api/posts", postHandler.CreatePost).Methods("POST")
+	api.HandleFunc("/posts", postHandler.GetPosts).Methods("GET")
+	api.HandleFunc("/posts/{id}", postHandler.GetPost).Methods("GET")
+
+	// Защищенные маршруты
+	protected := api.PathPrefix("/").Subrouter()
+	protected.Use(middleware.Auth(s.config.JWTSecret))
+	protected.HandleFunc("/users/me", userHandler.GetCurrentUser).Methods("GET")
+
+	// Защищенные User routes
+	protected.HandleFunc("/users/{id}", userHandler.UpdateUser).Methods("PUT")
+	protected.HandleFunc("/users/{id}", userHandler.DeleteUser).Methods("DELETE")
+
+	// Защищенные Post routes
+	protected.HandleFunc("/posts", postHandler.CreatePost).Methods("POST")
+	protected.HandleFunc("/posts/{id}", postHandler.UpdatePost).Methods("PUT")
+	protected.HandleFunc("/posts/{id}", postHandler.DeletePost).Methods("DELETE")
+
+	// Comment routes
+	commentHandler := handlers.NewCommentHandler(s.db, s.logger)
+	protected.HandleFunc("/posts/{postId}/comments", commentHandler.GetComments).Methods("GET")
+	protected.HandleFunc("/posts/{postId}/comments", commentHandler.CreateComment).Methods("POST")
+	protected.HandleFunc("/comments/{id}", commentHandler.UpdateComment).Methods("PUT")
+	protected.HandleFunc("/comments/{id}", commentHandler.DeleteComment).Methods("DELETE")
+
+	// Like routes
+	likeHandler := handlers.NewLikeHandler(s.db, s.logger)
+	protected.HandleFunc("/posts/{postId}/likes", likeHandler.LikePost).Methods("POST")
+	protected.HandleFunc("/posts/{postId}/likes", likeHandler.UnlikePost).Methods("DELETE")
 }
 
 func (s *Server) Run() error {

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/dgrijalva/jwt-go"
 	"gorm.io/gorm"
 	"time"
 )
@@ -62,4 +63,9 @@ type Analytics struct {
 	LikesCount     int
 	CommentsCount  int
 	SentimentScore float32
+}
+
+type MyCustomClaims struct {
+	UserId uint `json:"user_id"`
+	jwt.StandardClaims
 }

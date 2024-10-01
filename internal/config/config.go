@@ -13,6 +13,7 @@ type Config struct {
 	DBPort        int
 	DBUser        string
 	DBPassword    string
+	JWTSecret     string
 	DBName        string
 	RedisHost     string
 	RedisPort     int
@@ -42,5 +43,6 @@ func Load() (*Config, error) {
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 		KafkaBrokers:  os.Getenv("KAFKA_BROKERS"),
 		RabbitMQURL:   os.Getenv("RABBITMQ_URL"),
+		JWTSecret:     os.Getenv("JWT_SECRET"),
 	}, nil
 }
